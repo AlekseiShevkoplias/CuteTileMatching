@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>НАЙДИ ПАРУ</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: rgb(220, 208, 255);
+            touch-action: manipulation;
+            overflow: hidden;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #game-canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .screen.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: rgb(10, 10, 10);
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+        
+        p {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: rgb(10, 10, 10);
+            background-color: rgba(255, 255, 255, 0.8);
+            max-width: 80%;
+        }
+        
+        .secret-text {
+            font-size: 22px;
+            color: rgb(0, 100, 0);
+            margin: 20px 0;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            max-width: 90%;
+        }
+        
+        .button {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: rgb(66, 44, 88);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 30px;
+            pointer-events: inherit;
+            touch-action: manipulation;
+        }
+        
+        .button:hover, .button:active {
+            background-color: rgb(95, 59, 130);
+        }
+        
+        .hud {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        
+        .hud-item {
+            font-size: 20px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 15px;
+            border-radius: 5px;
+            color: rgb(10, 10, 10);
+        }
+        
+        .all-secrets {
+            width: 90%;
+            max-height: 70vh;
+            overflow-y: auto;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .secret-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .level-complete-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(165, 235, 158, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        
+        .level-complete-overlay.active {
+            opacity: 1;
+        }
+        
+        .level-complete-text {
+            font-size: 36px;
+            font-weight: bold;
+            color: rgb(0, 0, 0);
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px 40px;
+            border-radius: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 28px;
+            }
+            
+            p {
+                font-size: 18px;
+            }
+            
+            .button {
+                padding: 12px 24px;
+                font-size: 20px;
+            }
+            
+            .hud-item {
+                font-size: 16px;
+            }
+            
+            .secret-text {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <div id="ui-container">
+            <!-- HUD (Heads-Up Display) -->
+            <div class="hud" id="game-hud">
+                <div class="hud-item" id="level-display">Уровень: 1/10</div>
+                <div class="hud-item" id="score-display">Счет: 0</div>
+                <div class="hud-item" id="time-display">Время: 30:00</div>
+            </div>
+            
+            <!-- Level Complete Overlay -->
+            <div class="level-complete-overlay" id="level-completing-overlay">
+                <div class="level-complete-text">Уровень пройден!</div>
+            </div>
+            
+            <!-- Start Screen -->
+            <div class="screen active" id="start-screen">
+                <h1>Игра НАЙДИ ПАРУ</h1>
+                <p>Соотнеси пары картинок, чтобы найти все секретики</p>
+                <button class="button" id="start-button">Начать игру</button>
+            </div>
+            
+            <!-- Level Complete Screen -->
+            <div class="screen" id="level-complete-screen">
+                <h1 id="level-complete-title">Уровень 1 пройден!</h1>
+                <p>Ты узнала секретик:</p>
+                <div class="secret-text" id="revealed-secret">Секретный текст появится здесь</div>
+                <button class="button" id="next-level-button">Следующий уровень</button>
+            </div>
+            
+            <!-- Game Over Screen -->
+            <div class="screen" id="game-over-screen">
+                <h1>Время вышло!</h1>
+                <p>К сожалению, время закончилось</p>
+                <p id="final-score">Итоговый счет: 0</p>
+                <button class="button" id="restart-button">Играть снова</button>
+            </div>
+            
+            <!-- Game Complete Screen -->
+            <div class="screen" id="game-complete-screen">
+                <h1>Поздравляю!</h1>
+                <p>Ты прошла все уровни!</p>
+                <h2>ВСЕ СЕКРЕТИКИ:</h2>
+                <div class="all-secrets" id="all-secrets-container">
+                    <!-- Secrets will be listed here -->
+                </div>
+                <button class="button" id="play-again-button">Играть снова</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Game configuration
+        const gameConfig = {
+            windowWidth: 1800,
+            windowHeight: 1100,
+            numLevels: 10,
+            levelDuration: 1800, // 30 minutes per level
+            tileTypes: 18,
+            gridSizes: [
+                [2, 3],  // Level 1
+                [3, 4],  // Level 2
+                [4, 4],  // Level 3
+                [4, 5],  // Level 4
+                [5, 6],  // Level 5
+                [6, 6],  // Level 6
+                [6, 7],  // Level 7
+                [7, 8],  // Level 8
+                [8, 8],  // Level 9
+                [8, 9]   // Level 10
+            ],
+            secretTexts: [
+                "Медузы существуют на Земле уже более 650 миллионов лет — они старше динозавров и даже старше деревьев!!",
+                "Когда ты чихаешь, воздух вылетает из твоего носа со скоростью около 160 км/ч — быстрее, чем разрешено ездить на большинстве дорог!",
+                "Отпечатки языка у каждого человека так же уникальны, как отпечатки пальцев — у каждого свой неповторимый ''язычный паспорт''.",
+                "В космосе неудобно плакать — в невесомости слезы не стекают, а собираются в маленькие шарики вокруг глаз.",
+                "Осьминоги имеют три сердца и синюю кровь. Два сердца перекачивают кровь через жабры, а третье — по всему телу.",
+                "Когда ты смотришь на звезды, ты на самом деле видишь прошлое — свет от ближайшей к нам звезды (кроме Солнца) путешествует к Земле более четырех лет!",
+                "Пчелы могут распознавать человеческие лица и запоминать людей, которые были к ним добры.",
+                "Твой мозг генерирует достаточно электричества, чтобы зажечь маленькую лампочку — мозг работает на электрических импульсах мощностью около 20 ватт.",
+                "В твоем теле больше бактерий, чем клеток — микроорганизмы составляют около 1-3% массы твоего тела, и большинство из них полезны!",
+                "Когда ты смотришь на радугу, ты видишь свой собственный, уникальный вариант радуги — каждый человек видит немного другую радугу, в зависимости от положения своих глаз."
+            ],
+            backgroundColor: [220, 208, 255],
+            textColor: [10, 10, 10],
+            highlightColor: [255, 215, 0],
+            levelCompleteDelay: 2000 // 2 seconds
+        };
+        
+        // Initialize game
+        class TileMatchingGame {
+            constructor(config) {
+                this.config = config;
+                this.canvas = document.getElementById('game-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Set canvas size
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // Game state
+                this.state = 'start'; // 'start', 'playing', 'level_completing', 'level_complete', 'game_over', 'game_complete'
+                this.currentLevel = 1;
+                this.score = 0;
+                this.timeLeft = this.config.levelDuration;
+                this.startTime = 0;
+                this.revealedTexts = Array(this.config.numLevels).fill('');
+                this.levelCompleteTimer = 0;
+                
+                // Mouse tracking for hover effects
+                this.mouseX = 0;
+                this.mouseY = 0;
+                this.isMouseOverTile = false;
+                
+                // Key state tracking for cheat keys
+                this.keyStates = {
+                    KeyN: false,
+                    KeyL: false
+                };
+                
+                // Game grid
+                this.grid = [];
+                this.selectedTiles = [];
+                this.tileSize = 0;
+                
+                // Load tile images
+                this.loadTileImages();
+                
+                // UI elements
+                this.setupUI();
+                
+                // Start game loop
+                this.lastTime = 0;
+                requestAnimationFrame((time) => this.gameLoop(time));
+            }
+            
+            resizeCanvas() {
+                // Make canvas fill the window
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                // If we're in the playing state, recalculate tile positions
+                if (this.state === 'playing' || this.state === 'level_completing') {
+                    this.calculateTilePositions();
+                }
+            }
+            
+            loadTileImages() {
+                this.tileImages = [];
+                this.loadedImages = 0;
+                this.totalImages = this.config.tileTypes;
+                
+                // Generate fallback colors for tiles
+                const colors = [
+                    '#FF5733', '#33FF57', '#3357FF', '#FFFF33',
+                    '#FF33FF', '#33FFFF', '#800000', '#008000',
+                    '#000080', '#808000', '#800080', '#008080',
+                    '#FFA500', '#A52A2A', '#7FFF00', '#6A5ACD',
+                    '#FF69B4', '#4B0082'
+                ];
+                
+                // Create colored rectangles for each tile type
+                for (let i = 0; i < this.config.tileTypes; i++) {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.loadedImages++;
+                        if (this.loadedImages === this.totalImages) {
+                            console.log('All images loaded');
+                        }
+                    };
+                    img.onerror = () => {
+                        // Create a canvas with the fallback color
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 200;
+                        canvas.height = 200;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Fill with color
+                        ctx.fillStyle = colors[i % colors.length];
+                        ctx.fillRect(0, 0, 200, 200);
+                        
+                        // Add text
+                        ctx.fillStyle = 'white';
+                        ctx.font = '48px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(i + 1, 100, 100);
+                        
+                        // Convert to image
+                        const dataURL = canvas.toDataURL();
+                        img.src = dataURL;
+                        
+                        this.loadedImages++;
+                    };
+                    
+                    // Try to load the image
+                    img.src = `assets/tile${i}.png`;
+                    this.tileImages.push(img);
+                }
+                
+                // Create back-of-tile image
+                this.tileBackImage = document.createElement('canvas');
+                this.tileBackImage.width = 200;
+                this.tileBackImage.height = 200;
+                const ctx = this.tileBackImage.getContext('2d');
+                
+                // Purple background
+                ctx.fillStyle = 'rgb(115, 79, 150)';
+                ctx.fillRect(0, 0, 200, 200);
+                
+                // Border
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 10;
+                ctx.strokeRect(10, 10, 180, 180);
+            }
+            
+            setupUI() {
+                // No longer setting up button event handlers here since we're doing it globally
+                // Just set up the canvas interactions
+                
+                // Touch/click events for tile selection
+                this.canvas.addEventListener('click', (event) => {
+                    this.handleClick(event.clientX, event.clientY);
+                });
+                this.canvas.addEventListener('touchstart', (event) => {
+                    event.preventDefault();
+                    if (event.touches.length > 0) {
+                        const touch = event.touches[0];
+                        this.handleClick(touch.clientX, touch.clientY);
+                    }
+                });
+                
+                // Mouse tracking for hover effects
+                this.canvas.addEventListener('mousemove', (event) => {
+                    this.mouseX = event.clientX;
+                    this.mouseY = event.clientY;
+                    this.isMouseOverTile = this.isMouseOverAnyTile();
+                });
+                
+                this.canvas.addEventListener('mouseout', () => {
+                    this.isMouseOverTile = false;
+                });
+                
+                // Add keyboard support
+                document.addEventListener('keydown', (event) => {
+                    // Record key state for cheat
+                    if (event.code === 'KeyN' || event.code === 'KeyL') {
+                        this.keyStates[event.code] = true;
+                    }
+                    
+                    // Check for N+L cheat combination
+                    if (this.keyStates['KeyN'] && this.keyStates['KeyL']) {
+                        if (this.state === 'playing') {
+                            this.state = 'level_completing';
+                            this.levelCompleteTimer = Date.now();
+                            this.revealedTexts[this.currentLevel - 1] = this.config.secretTexts[this.currentLevel - 1];
+                            document.getElementById('level-completing-overlay').classList.add('active');
+                        }
+                    }
+                    
+                    // Space key
+                    if (event.code === 'Space') {
+                        if (this.state === 'start') {
+                            this.startGame();
+                        } else if (this.state === 'level_complete') {
+                            if (this.currentLevel < this.config.numLevels) {
+                                this.nextLevel();
+                            } else {
+                                this.state = 'game_complete';
+                                this.showScreen('game-complete-screen');
+                                this.updateAllSecrets();
+                            }
+                        } else if (this.state === 'game_over' || this.state === 'game_complete') {
+                            this.startGame();
+                        }
+                    }
+                });
+                
+                document.addEventListener('keyup', (event) => {
+                    // Reset key state tracking
+                    if (event.code === 'KeyN' || event.code === 'KeyL') {
+                        this.keyStates[event.code] = false;
+                    }
+                });
+            }
+            
+            showScreen(screenId) {
+                // Hide all screens
+                const screens = document.querySelectorAll('.screen');
+                screens.forEach(screen => {
+                    screen.classList.remove('active');
+                });
+                
+                // Show the requested screen
+                if (screenId) {
+                    const screen = document.getElementById(screenId);
+                    if (screen) {
+                        screen.classList.add('active');
+                    }
+                }
+                
+                // Show/hide HUD
+                const hud = document.getElementById('game-hud');
+                hud.style.display = (this.state === 'playing' || this.state === 'level_completing') ? 'flex' : 'none';
+                
+                // Show/hide level complete overlay
+                const overlay = document.getElementById('level-completing-overlay');
+                overlay.classList.remove('active');
+            }
+            
+            startGame() {
+                this.currentLevel = 1;
+                this.score = 0;
+                this.timeLeft = this.config.levelDuration;
+                this.revealedTexts = Array(this.config.numLevels).fill('');
+                this.selectedTiles = [];
+                this.state = 'playing';
+                this.startTime = Date.now();
+                
+                // Initialize grid for level 1
+                this.initializeGrid();
+                
+                // Show game screen
+                this.showScreen(null);
+                
+                // Update HUD
+                this.updateHUD();
+            }
+            
+            nextLevel() {
+            console.log('Next level method called, advancing to level', this.currentLevel + 1);
+            this.currentLevel++;
+            this.timeLeft = this.config.levelDuration;
+            this.startTime = Date.now();
+            this.selectedTiles = [];
+            this.state = 'playing';
+
+            // Initialize grid for new level
+            this.initializeGrid();
+
+            // 👇 Hide the level complete screen
+            this.showScreen(null);
+
+            // Update HUD just in case
+            this.updateHUD();
+        }
+
+            
+            initializeGrid() {
+                const [cols, rows] = this.config.gridSizes[this.currentLevel - 1];
+                
+                // Calculate available space
+                const uiHeight = 100; // Space for UI elements
+                const gameAreaWidth = this.canvas.width - 40; // Padding on sides
+                const gameAreaHeight = this.canvas.height - uiHeight; // Space for UI
+                
+                // Calculate tile size
+                const tileWidth = Math.floor(gameAreaWidth / cols) - 10;
+                const tileHeight = Math.floor(gameAreaHeight / rows) - 10;
+                this.tileSize = Math.min(tileWidth, tileHeight);
+                
+                // Ensure reasonable tile size
+                this.tileSize = Math.max(60, Math.min(this.tileSize, 300));
+                
+                // Calculate grid offset to center it
+                const gridWidth = cols * (this.tileSize + 10) - 10;
+                const gridHeight = rows * (this.tileSize + 10) - 10;
+                this.gridOffsetX = Math.floor((this.canvas.width - gridWidth) / 2);
+                this.gridOffsetY = Math.floor((this.canvas.height - gridHeight) / 2) + 20; // Extra space for UI at top
+                
+                // Create pairs of tiles
+                let tileValues = [];
+                const totalTiles = rows * cols;
+                const pairsNeeded = Math.floor(totalTiles / 2);
+                
+                for (let i = 0; i < pairsNeeded; i++) {
+                    const tileType = i % this.config.tileTypes;
+                    tileValues.push(tileType);
+                    tileValues.push(tileType);
+                }
+                
+                // Shuffle tiles
+                tileValues = this.shuffleArray(tileValues);
+                
+                // Create grid
+                this.grid = [];
+                for (let r = 0; r < rows; r++) {
+                    const row = [];
+                    for (let c = 0; c < cols; c++) {
+                        const index = r * cols + c;
+                        if (index < tileValues.length) {
+                            row.push({
+                                type: tileValues[index],
+                                revealed: false,
+                                matched: false,
+                                justRevealed: false,
+                                justMatched: false,
+                                revealTime: 0,
+                                matchTime: 0,
+                                x: this.gridOffsetX + c * (this.tileSize + 10),
+                                y: this.gridOffsetY + r * (this.tileSize + 10),
+                                width: this.tileSize,
+                                height: this.tileSize
+                            });
+                        } else {
+                            row.push(null); // Empty space
+                        }
+                    }
+                    this.grid.push(row);
+                }
+            }
+            
+            calculateTilePositions() {
+                if (this.grid.length === 0) return;
+                
+                const [cols, rows] = [this.grid[0].length, this.grid.length];
+                
+                // Calculate available space
+                const uiHeight = 100; // Space for UI elements
+                const gameAreaWidth = this.canvas.width - 40; // Padding on sides
+                const gameAreaHeight = this.canvas.height - uiHeight; // Space for UI
+                
+                // Calculate tile size
+                const tileWidth = Math.floor(gameAreaWidth / cols) - 10;
+                const tileHeight = Math.floor(gameAreaHeight / rows) - 10;
+                this.tileSize = Math.min(tileWidth, tileHeight);
+                
+                // Ensure reasonable tile size
+                this.tileSize = Math.max(60, Math.min(this.tileSize, 300));
+                
+                // Calculate grid offset to center it
+                const gridWidth = cols * (this.tileSize + 10) - 10;
+                const gridHeight = rows * (this.tileSize + 10) - 10;
+                this.gridOffsetX = Math.floor((this.canvas.width - gridWidth) / 2);
+                this.gridOffsetY = Math.floor((this.canvas.height - gridHeight) / 2) + 20; // Extra space for UI at top
+                
+                // Update tile positions
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const tile = this.grid[r][c];
+                        if (tile) {
+                            tile.x = this.gridOffsetX + c * (this.tileSize + 10);
+                            tile.y = this.gridOffsetY + r * (this.tileSize + 10);
+                            tile.width = this.tileSize;
+                            tile.height = this.tileSize;
+                        }
+                    }
+                }
+            }
+            
+            shuffleArray(array) {
+                const newArray = [...array];
+                for (let i = newArray.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+                }
+                return newArray;
+            }
+            
+            isMouseOverAnyTile() {
+                for (let r = 0; r < this.grid.length; r++) {
+                    for (let c = 0; c < this.grid[r].length; c++) {
+                        const tile = this.grid[r][c];
+                        if (tile && !tile.matched && !tile.revealed) {
+                            if (this.mouseX >= tile.x && this.mouseX <= tile.x + tile.width &&
+                                this.mouseY >= tile.y && this.mouseY <= tile.y + tile.height) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            
+            handleClick(x, y) {
+                if (this.state !== 'playing') return;
+                
+                // Check if a tile was clicked
+                for (let r = 0; r < this.grid.length; r++) {
+                    for (let c = 0; c < this.grid[r].length; c++) {
+                        const tile = this.grid[r][c];
+                        if (tile && this.isPointInTile(x, y, tile)) {
+                            if (!tile.matched && !tile.revealed) {
+                                // Reveal the tile with animation
+                                tile.revealed = true;
+                                tile.justRevealed = true;
+                                tile.revealTime = Date.now();
+                                this.selectedTiles.push([r, c]);
+                                
+                                // If we've selected 2 tiles, check for a match
+                                if (this.selectedTiles.length === 2) {
+                                    const [r1, c1] = this.selectedTiles[0];
+                                    const [r2, c2] = this.selectedTiles[1];
+                                    const tile1 = this.grid[r1][c1];
+                                    const tile2 = this.grid[r2][c2];
+                                    
+                                    if (tile1.type === tile2.type) {
+                                        // Match with animation!
+                                        tile1.matched = true;
+                                        tile2.matched = true;
+                                        tile1.justMatched = true;
+                                        tile2.justMatched = true;
+                                        tile1.matchTime = Date.now();
+                                        tile2.matchTime = Date.now();
+                                        this.score += 10 * this.currentLevel;
+                                        this.selectedTiles = [];
+                                        
+                                        // Update score display
+                                        this.updateHUD();
+                                        
+                                        // Check if level complete
+                                        if (this.isLevelComplete()) {
+                                            // Set state to level_completing and start the timer
+                                            this.state = 'level_completing';
+                                            this.levelCompleteTimer = Date.now();
+                                            this.revealedTexts[this.currentLevel - 1] = this.config.secretTexts[this.currentLevel - 1];
+                                            document.getElementById('level-completing-overlay').classList.add('active');
+                                        }
+                                    } else {
+                                        // No match, hide tiles after a delay
+                                        setTimeout(() => {
+                                            this.hideSelectedTiles();
+                                        }, 1000);
+                                    }
+                                }
+                                return; // Only handle one tile click at a time
+                            }
+                        }
+                    }
+                }
+            }
+            
+            isPointInTile(x, y, tile) {
+                return x >= tile.x && x <= tile.x + tile.width &&
+                       y >= tile.y && y <= tile.y + tile.height;
+            }
+            
+            isLevelComplete() {
+                for (const row of this.grid) {
+                    for (const tile of row) {
+                        if (tile && !tile.matched) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            
+            hideSelectedTiles() {
+                for (const [r, c] of this.selectedTiles) {
+                    this.grid[r][c].revealed = false;
+                }
+                this.selectedTiles = [];
+            }
+            
+            updateTime() {
+                if (this.state === 'playing') {
+                    const now = Date.now();
+                    const elapsed = Math.floor((now - this.startTime) / 1000);
+                    this.timeLeft = Math.max(0, this.config.levelDuration - elapsed);
+                    
+                    // Update time display
+                    this.updateHUD();
+                    
+                    if (this.timeLeft === 0) {
+                        this.state = 'game_over';
+                        document.getElementById('final-score').textContent = `Итоговый счет: ${this.score}`;
+                        this.showScreen('game-over-screen');
+                    }
+                } else if (this.state === 'level_completing') {
+                    const now = Date.now();
+                    if (now - this.levelCompleteTimer >= this.config.levelCompleteDelay) {
+                        this.state = 'level_complete';
+                        document.getElementById('level-complete-title').textContent = `Уровень ${this.currentLevel} пройден!`;
+                        document.getElementById('revealed-secret').textContent = this.revealedTexts[this.currentLevel - 1];
+                        
+                        // Show next level button or game complete button
+                        const nextLevelButton = document.getElementById('next-level-button');
+                        if (this.currentLevel < this.config.numLevels) {
+                            nextLevelButton.textContent = 'Следующий уровень';
+                        } else {
+                            nextLevelButton.textContent = 'Показать все секретики';
+                        }
+                        
+                        this.showScreen('level-complete-screen');
+                    }
+                }
+            }
+            
+            updateHUD() {
+                document.getElementById('level-display').textContent = `Уровень: ${this.currentLevel}/${this.config.numLevels}`;
+                document.getElementById('score-display').textContent = `Счет: ${this.score}`;
+                document.getElementById('time-display').textContent = `Время: ${this.formatTime(this.timeLeft)}`;
+            }
+            
+            updateAllSecrets() {
+                const container = document.getElementById('all-secrets-container');
+                container.innerHTML = '';
+                
+                for (let i = 0; i < this.revealedTexts.length; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'secret-item';
+                    div.innerHTML = `<strong>Уровень ${i+1}:</strong> ${this.revealedTexts[i] || '(не найдено)'}`;
+                    container.appendChild(div);
+                }
+            }
+            
+            formatTime(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                seconds = seconds % 60;
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            drawGrid() {
+                // Clear canvas
+                this.ctx.fillStyle = `rgb(${this.config.backgroundColor[0]}, ${this.config.backgroundColor[1]}, ${this.config.backgroundColor[2]})`;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw tiles
+                for (const row of this.grid) {
+                    for (const tile of row) {
+                        if (tile) {
+                            if (tile.matched) {
+                                // Draw matched tile with animation
+                                if (tile.justMatched) {
+                                    // Add a match animation (faster)
+                                    this.ctx.save();
+                                    const now = Date.now();
+                                    const elapsed = now - tile.matchTime;
+                                    if (elapsed < 300) { // Faster (was 500)
+                                        const scale = 1 + 0.1 * Math.sin((elapsed / 300) * Math.PI);
+                                        this.ctx.translate(tile.x + tile.width/2, tile.y + tile.height/2);
+                                        this.ctx.scale(scale, scale);
+                                        this.ctx.translate(-(tile.x + tile.width/2), -(tile.y + tile.height/2));
+                                    } else {
+                                        tile.justMatched = false;
+                                    }
+                                }
+                                
+                                // Draw the highlight and tile
+                                this.ctx.fillStyle = `rgb(${this.config.highlightColor[0]}, ${this.config.highlightColor[1]}, ${this.config.highlightColor[2]})`;
+                                this.ctx.fillRect(tile.x - 5, tile.y - 5, tile.width + 10, tile.height + 10);
+                                this.ctx.drawImage(this.tileImages[tile.type], tile.x, tile.y, tile.width, tile.height);
+                                
+                                if (tile.justMatched) {
+                                    this.ctx.restore();
+                                }
+                            } else if (tile.revealed) {
+                                // Draw revealed tile with flip animation
+                                if (tile.justRevealed) {
+                                    const now = Date.now();
+                                    const elapsed = now - tile.revealTime;
+                                    if (elapsed < 150) { // Faster animation (was 300)
+                                        // Save the context before transformations
+                                        this.ctx.save();
+                                        
+                                        // Animation progress (0 to 1)
+                                        const flipProgress = elapsed / 75; // Faster animation (was 150)
+                                        
+                                        if (flipProgress < 1) {
+                                            // First half: Back of tile shrinking
+                                            const scaleX = 1 - flipProgress;
+                                            this.ctx.translate(tile.x + tile.width/2, tile.y + tile.height/2);
+                                            this.ctx.scale(scaleX, 1);
+                                            this.ctx.translate(-(tile.x + tile.width/2), -(tile.y + tile.height/2));
+                                            this.ctx.drawImage(this.tileBackImage, tile.x, tile.y, tile.width, tile.height);
+                                        } else {
+                                            // Second half: Front of tile growing
+                                            const secondHalfProgress = (elapsed - 75) / 75; // Faster (was 150)
+                                            const scaleX = secondHalfProgress;
+                                            this.ctx.translate(tile.x + tile.width/2, tile.y + tile.height/2);
+                                            this.ctx.scale(scaleX, 1);
+                                            this.ctx.translate(-(tile.x + tile.width/2), -(tile.y + tile.height/2));
+                                            this.ctx.drawImage(this.tileImages[tile.type], tile.x, tile.y, tile.width, tile.height);
+                                        }
+                                        
+                                        // Restore the context after transformations
+                                        this.ctx.restore();
+                                        
+                                        // Continue drawing other tiles
+                                        continue;
+                                    } else {
+                                        tile.justRevealed = false;
+                                    }
+                                }
+                                
+                                // Draw the tile image
+                                this.ctx.drawImage(this.tileImages[tile.type], tile.x, tile.y, tile.width, tile.height);
+                                
+                                if (tile.justRevealed) {
+                                    this.ctx.restore();
+                                }
+                            } else {
+                                // Draw face-down tile with hover/touch effect
+                                if (this.isMouseOverTile && this.mouseX >= tile.x && this.mouseX <= tile.x + tile.width &&
+                                    this.mouseY >= tile.y && this.mouseY <= tile.y + tile.height) {
+                                    // Hover effect - grow slightly and add glow
+                                    this.ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+                                    this.ctx.shadowBlur = 15;
+                                    
+                                    // Scale effect (grow slightly)
+                                    this.ctx.save();
+                                    const hoverScale = 1.05;
+                                    this.ctx.translate(tile.x + tile.width/2, tile.y + tile.height/2);
+                                    this.ctx.scale(hoverScale, hoverScale);
+                                    this.ctx.translate(-(tile.x + tile.width/2), -(tile.y + tile.height/2));
+                                    this.ctx.drawImage(this.tileBackImage, tile.x, tile.y, tile.width, tile.height);
+                                    this.ctx.restore();
+                                } else {
+                                    // Normal tile
+                                    this.ctx.drawImage(this.tileBackImage, tile.x, tile.y, tile.width, tile.height);
+                                }
+                                
+                                // Reset shadow
+                                this.ctx.shadowColor = 'transparent';
+                                this.ctx.shadowBlur = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            gameLoop(currentTime) {
+                // Calculate delta time
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                
+                // Update time
+                this.updateTime();
+                
+                // Draw game
+                if (this.state === 'playing' || this.state === 'level_completing') {
+                    this.drawGrid();
+                }
+                
+                // Request next frame
+                requestAnimationFrame((time) => this.gameLoop(time));
+            }
+        }
+        
+        // Start the game when the page is loaded
+        let gameInstance;
+        
+        window.addEventListener('load', () => {
+            // Create the game instance
+            gameInstance = new TileMatchingGame(gameConfig);
+            
+            // Set up button handlers with explicit reference to the game instance
+            document.getElementById('start-button').addEventListener('click', function() {
+                gameInstance.startGame();
+            });
+            
+            document.getElementById('next-level-button').addEventListener('click', () => {
+                if (gameInstance.state === 'level_complete') {
+                    console.log(gameInstance.currentLevel);
+                    console.log(gameInstance.config.numLevels);
+                    if (gameInstance.currentLevel < gameInstance.config.numLevels) {
+                        gameInstance.nextLevel();
+                        // gameInstance.showScreen(null); // 👈 hide the level-complete screen just like Space does
+                    } else {
+                        gameInstance.state = 'game_complete';
+                        gameInstance.showScreen('game-complete-screen');
+                        gameInstance.updateAllSecrets();
+                    }
+                }
+            });
+
+            
+            document.getElementById('restart-button').addEventListener('click', function() {
+                console.log("Restart button clicked");
+                gameInstance.startGame();
+            });
+            
+            document.getElementById('play-again-button').addEventListener('click', function() {
+                console.log("play-again button clicked");
+                gameInstance.startGame();
+            });
+        });
+    </script>
+
+</body>
+</html>
