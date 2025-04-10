@@ -296,7 +296,7 @@
             windowHeight: 1100,
             numLevels: 10,
             levelDuration: 1800, // 30 minutes per level
-            tileTypes: 18,
+            tileTypes: 27,
             gridSizes: [
                 [2, 3],  // Level 1
                 [3, 4],  // Level 2
@@ -324,7 +324,7 @@
             backgroundColor: [220, 208, 255],
             textColor: [10, 10, 10],
             highlightColor: [255, 215, 0],
-            levelCompleteDelay: 2000 // 2 seconds
+            levelCompleteDelay: 500 // 2 seconds
         };
         
         // Initialize game
@@ -442,7 +442,7 @@
                     };
                     
                     // Try to load the image
-                    img.src = `assets/tile${i}.png`;
+                    img.src = `assets/tile${i}.webp`;
                     this.tileImages.push(img);
                 }
                 
@@ -645,6 +645,7 @@
                                 justMatched: false,
                                 revealTime: 0,
                                 matchTime: 0,
+                                hideAtTime: null,
                                 x: this.gridOffsetX + c * (this.tileSize + 10),
                                 y: this.gridOffsetY + r * (this.tileSize + 10),
                                 width: this.tileSize,
@@ -766,9 +767,9 @@
                                         }
                                     } else {
                                         // No match, hide tiles after a delay
-                                        setTimeout(() => {
-                                            this.hideSelectedTiles();
-                                        }, 1000);
+                                        tile1.hideAtTime = Date.now() + 1000;
+                                        tile2.hideAtTime = Date.now() + 1000;
+                                        this.selectedTiles = [];
                                     }
                                 }
                                 return; // Only handle one tile click at a time
@@ -894,6 +895,32 @@
                                     this.ctx.restore();
                                 }
                             } else if (tile.revealed) {
+                                const now = Date.now();
+
+                                // 👇 Add flip-back animation for hiding tiles
+                                if (tile.hideAtTime && now < tile.hideAtTime && now >= tile.hideAtTime - 150) {
+                                    const hideElapsed = now - (tile.hideAtTime - 150);
+
+                                    this.ctx.save();
+                                    if (hideElapsed < 75) {
+                                        // First half: shrink the front image
+                                        const scaleX = 1 - hideElapsed / 75;
+                                        this.ctx.translate(tile.x + tile.width / 2, tile.y + tile.height / 2);
+                                        this.ctx.scale(scaleX, 1);
+                                        this.ctx.translate(-(tile.x + tile.width / 2), -(tile.y + tile.height / 2));
+                                        this.ctx.drawImage(this.tileImages[tile.type], tile.x, tile.y, tile.width, tile.height);
+                                    } else {
+                                        // Second half: grow the back image
+                                        const scaleX = (hideElapsed - 75) / 75;
+                                        this.ctx.translate(tile.x + tile.width / 2, tile.y + tile.height / 2);
+                                        this.ctx.scale(scaleX, 1);
+                                        this.ctx.translate(-(tile.x + tile.width / 2), -(tile.y + tile.height / 2));
+                                        this.ctx.drawImage(this.tileBackImage, tile.x, tile.y, tile.width, tile.height);
+                                    }
+                                    this.ctx.restore();
+
+                                    continue; // Skip normal rendering
+                                }
                                 // Draw revealed tile with flip animation
                                 if (tile.justRevealed) {
                                     const now = Date.now();
@@ -972,7 +999,15 @@
                 // Calculate delta time
                 const deltaTime = currentTime - this.lastTime;
                 this.lastTime = currentTime;
-                
+                const now = Date.now();
+                for (const row of this.grid) {
+                    for (const tile of row) {
+                        if (tile && tile.revealed && !tile.matched && tile.hideAtTime && now >= tile.hideAtTime) {
+                            tile.revealed = false;
+                            tile.hideAtTime = null;
+                        }
+                    }
+                }
                 // Update time
                 this.updateTime();
                 
