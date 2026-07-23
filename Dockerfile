@@ -1,4 +1,4 @@
-FROM python:3.9-windowsservercore
+FROM python:3.14-windowsservercore
 
 # Install requirements
 RUN pip install pyinstaller pygame
